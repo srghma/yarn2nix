@@ -1,0 +1,10 @@
+{
+  "name": "@yarn2nix/fixup-bin",
+  "version": "1.0.0",
+  "description": "Fixup bin internal script",
+  "author": "Maarten Hoogendoorn <maarten@moretea.nl>",
+  "license": "MIT",
+  "bin": {
+    "fixup-bin": "src/index.js"
+  }
+}

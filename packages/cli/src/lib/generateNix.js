@@ -1,6 +1,6 @@
 const R = require('ramda')
 
-const urlToName = require('./urlToName')
+const urlToName = require('@yarn2nix/lib/src/urlToName')
 
 // fetchgit transforms
 //

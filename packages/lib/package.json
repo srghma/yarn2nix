@@ -1,0 +1,9 @@
+{
+  "name": "@yarn2nix/lib",
+  "version": "1.0.0",
+  "description": "Shared lib",
+  "main": "index.js",
+  "repository": ".",
+  "author": "Maarten Hoogendoorn <maarten@moretea.nl>",
+  "license": "MIT"
+}

@@ -71,9 +71,11 @@ in rec {
   }:
     let
       offlineCache = importOfflineCache yarnNix;
+
       extraBuildInputs = (lib.flatten (builtins.map (key:
         pkgConfig.${key} . buildInputs or []
       ) (builtins.attrNames pkgConfig)));
+
       postInstall = (builtins.map (key:
         if (pkgConfig.${key} ? postInstall) then
           ''
@@ -84,9 +86,11 @@ in rec {
         else
           ""
       ) (builtins.attrNames pkgConfig));
+
       workspaceJSON = pkgs.writeText
         "${name}-workspace-package.json"
         (builtins.toJSON { private = true; workspaces = ["deps/**"]; }); # scoped packages need second splat
+
       workspaceDependencyLinks = lib.concatMapStringsSep "\n"
         (dep: ''
           mkdir -p "deps/${dep.pname}"
@@ -115,7 +119,7 @@ in rec {
         yarn config --offline set yarn-offline-mirror ${offlineCache}
 
         # Do not look up in the registry, but in the offline cache.
-        node ${./internal/fixup_yarn_lock.js} yarn.lock
+        ${fixup-yarn-lock}/bin/fixup-yarn-lock yarn.lock
 
         ${workspaceDependencyLinks}
 
@@ -150,38 +154,62 @@ in rec {
   }@attrs:
   let
     package = lib.importJSON packageJSON;
+
     packageGlobs = package.workspaces;
+
     globElemToRegex = lib.replaceStrings ["*"] [".*"];
+
     # PathGlob -> [PathGlobElem]
     splitGlob = lib.splitString "/";
+
     # Path -> [PathGlobElem] -> [Path]
     # Note: Only directories are included, everything else is filtered out
     expandGlobList = base: globElems:
-    let
-      elemRegex = globElemToRegex (lib.head globElems);
-      rest = lib.tail globElems;
-      children = lib.attrNames (lib.filterAttrs (name: type: type == "directory") (builtins.readDir base));
-      matchingChildren = lib.filter (child: builtins.match elemRegex child != null) children;
-    in if globElems == []
-      then [ base ]
-      else lib.concatMap (child: expandGlobList (base+("/"+child)) rest) matchingChildren;
+      let
+        elemRegex = globElemToRegex (lib.head globElems);
+        rest = lib.tail globElems;
+        children = lib.attrNames (lib.filterAttrs (name: type: type == "directory") (builtins.readDir base));
+        matchingChildren = lib.filter (child: builtins.match elemRegex child != null) children;
+      in if globElems == []
+        then [ base ]
+        else lib.concatMap (child: expandGlobList (base+("/"+child)) rest) matchingChildren;
+
     # Path -> PathGlob -> [Path]
     expandGlob = base: glob: expandGlobList base (splitGlob glob);
+
     packagePaths = lib.concatMap (expandGlob src) packageGlobs;
-    packages = lib.listToAttrs (map (src:
-    let
-      packageJSON = src + "/package.json";
-      package = lib.importJSON packageJSON;
-      allDependencies = lib.foldl (a: b: a // b) {} (map (field: lib.attrByPath [field] {} package) ["dependencies" "devDependencies"]);
-    in rec {
-      name = reformatPackageName package.name;
-      value = mkYarnPackage (builtins.removeAttrs attrs ["packageOverrides"] // {
-        inherit src packageJSON yarnLock;
-        workspaceDependencies = lib.mapAttrsToList (name: version: packages.${name})
-          (lib.filterAttrs (name: version: packages ? ${name}) allDependencies);
-      } // lib.attrByPath [name] {} packageOverrides);
-    }) packagePaths);
-  in packages;
+
+    packages = lib.listToAttrs (
+      map
+        (src:
+          let
+            packageJSON = src + "/package.json";
+
+            package = lib.importJSON packageJSON;
+
+            allDependencies = lib.foldl
+              (a: b: a // b)
+              {}
+              (map (field: lib.attrByPath [field] {} package) ["dependencies" "devDependencies"]);
+          in rec {
+            name = reformatPackageName package.name;
+
+            value = mkYarnPackage (
+              builtins.removeAttrs attrs ["packageOverrides"] //
+              {
+                inherit src packageJSON yarnLock;
+
+                workspaceDependencies = lib.mapAttrsToList
+                  (name: version: packages.${name})
+                  (lib.filterAttrs (name: version: packages ? ${name}) allDependencies);
+              } //
+              lib.attrByPath [name] {} packageOverrides
+            );
+          }
+        )
+        packagePaths
+      );
+      in packages;
 
   mkYarnPackage = {
     name ? null,
@@ -203,13 +231,16 @@ in rec {
       safeName = reformatPackageName pname;
       version = package.version;
       baseName = unlessNull name "${safeName}-${version}";
+
       deps = mkYarnModules {
         name = "${safeName}-modules-${version}";
         preBuild = yarnPreBuild;
         workspaceDependencies = workspaceDependenciesTransitive;
         inherit packageJSON pname version yarnLock yarnNix yarnFlags pkgConfig;
       };
+
       publishBinsFor_ = unlessNull publishBinsFor [pname];
+
       linkDirFunction = ''
         linkDirToDirLinks() {
           target=$1
@@ -226,7 +257,17 @@ in rec {
           fi
         }
       '';
-      workspaceDependenciesTransitive = lib.unique ((lib.flatten (builtins.map (dep: dep.workspaceDependencies) workspaceDependencies)) ++ workspaceDependencies);
+
+      workspaceDependenciesTransitive = lib.unique (
+        (
+          lib.flatten (
+            builtins.map
+              (dep: dep.workspaceDependencies)
+              workspaceDependencies
+          )
+        ) ++ workspaceDependencies
+      );
+
       workspaceDependencyCopy = lib.concatMapStringsSep "\n"
         (dep: ''
           # ensure any existing scope directory is not a symlink
@@ -238,6 +279,7 @@ in rec {
           fi
         '')
         workspaceDependenciesTransitive;
+
     in stdenv.mkDerivation (builtins.removeAttrs attrs ["pkgConfig" "workspaceDependencies"] // {
       inherit src;
 
@@ -284,7 +326,7 @@ in rec {
         mkdir -p $out/{bin,libexec/${pname}}
         mv node_modules $out/libexec/${pname}/node_modules
         mv deps $out/libexec/${pname}/deps
-        node ${./internal/fixup_bin.js} $out/bin $out/libexec/${pname}/node_modules ${lib.concatStringsSep " " publishBinsFor_}
+        ${fixup-bin}/bin/fixup-bin $out/bin $out/libexec/${pname}/node_modules ${lib.concatStringsSep " " publishBinsFor_}
 
         runHook postInstall
       '';
@@ -312,7 +354,7 @@ in rec {
       } // (attrs.meta or {});
     });
 
-  yarn2nix = mkYarnPackage {
+  yarn2nixWorkspace = mkYarnWorkspace {
     src = ./.;
 
     # yarn2nix is the only package that requires the yarnNix option.
@@ -321,17 +363,33 @@ in rec {
 
     yarnFlags = defaultYarnFlags ++ ["--production=true"];
 
-    buildPhase = ''
-      ${import ./nix/testFileShFunctions.nix}
+    # packageOverrides = {
+    #   cli = {
+    #     buildPhase = ''
+    #       ${import ./nix/testFileShFunctions.nix}
 
-      testFilePresent ./node_modules/.yarn-integrity
+    #       testFilePresent ./node_modules/.yarn-integrity
 
-      # check dependencies are installed
-      testFilePresent ./node_modules/@yarnpkg/lockfile/package.json
+    #       # check dependencies are installed
+    #       testFilePresent ./node_modules/@yarnpkg/lockfile/package.json
 
-      # check devDependencies are not installed
-      testFileOrDirAbsent ./node_modules/.bin/eslint
-      testFileOrDirAbsent ./node_modules/eslint/package.json
-    '';
+    #       # check devDependencies are not installed
+    #       testFileOrDirAbsent ./node_modules/.bin/eslint
+    #       testFileOrDirAbsent ./node_modules/eslint/package.json
+    #     '';
+
+    #     # publishBinsFor = [ "package-one" "gulp" ];
+
+    #     # doInstallCheck = true;
+    #     # installCheckPhase = ''
+    #     #   $out/bin/package-one
+    #     #   $out/bin/gulp --help
+    #     # '';
+    #   };
+    # };
   };
+
+  yarn2nix        = yarn2nixWorkspace.cli;
+  fixup-bin       = yarn2nixWorkspace.fixup-bin;
+  fixup-yarn-lock = yarn2nixWorkspace.fixup-yarn-lock;
 }

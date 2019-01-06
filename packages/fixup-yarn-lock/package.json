@@ -1,0 +1,13 @@
+{
+  "name": "@yarn2nix/fixup-yarn-lock",
+  "version": "1.0.0",
+  "description": "Fixup yarn lock internal script",
+  "author": "Maarten Hoogendoorn <maarten@moretea.nl>",
+  "license": "MIT",
+  "bin": {
+    "fixup-yarn-lock": "src/index.js"
+  },
+  "dependencies": {
+    "@yarn2nix/lib": "*"
+  }
+}
