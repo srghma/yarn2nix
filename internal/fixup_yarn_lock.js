@@ -40,7 +40,13 @@ function urlToName(url) {
   // to
   // anmonteiro_nexe_142338ede69c3828c8a3c9fa7bacd4850762e4a1
   if (url.startsWith('https://codeload.github.com/')) {
-    return path.basename(url)
+    const url_ = url
+      .replace('https://codeload.github.com/', '') // prevents having long directory names
+      .replace('tar.gz/', '')
+      .replace(/[@/:-]/g, '_') // replace "@", "/", ":", "/" characters with underscore
+
+    console.error('HERE', url_)
+    return `${url_ }.tgz#142338ede69c3828c8a3c9fa7bacd4850762e4a1`
   }
 
   return url
@@ -52,17 +58,26 @@ const result = []
 
 readFile
   .on('line', line => {
-    const arr = line.match(/^ {2}resolved "([^#]+)#([^"]+)"$/)
+    const urlWithShaMatch = line.match(/^ {2}resolved "([^"]+)"$/)
 
-    if (arr !== null) {
-      const [_, url, shaOrRev] = arr
-
-      const fileName = urlToName(url)
-
-      result.push(`  resolved "${fileName}#${shaOrRev}"`)
-    } else {
+    if (urlWithShaMatch === null) {
       result.push(line)
+      return
     }
+
+    const urlWithSha = urlWithShaMatch[1]
+
+    const [url, maybeShaOrRev] = urlWithSha.split('#')
+
+    const fileName = urlToName(url)
+
+    const addShaOrRev = maybeShaOrRev ? `#${maybeShaOrRev}` : ''
+
+    const newLine = `  resolved "${fileName}${addShaOrRev}"`
+
+    console.log('HERE', urlWithSha, newLine)
+
+    result.push(newLine)
   })
   .on('close', () => {
     fs.writeFile(yarnLockPath, result.join('\n'), 'utf8', err => {
