@@ -1,0 +1,9 @@
+{
+  "name": "github-dependency",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "nexe": "github:anmonteiro/nexe#master"
+  }
+}

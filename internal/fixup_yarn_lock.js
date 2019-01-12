@@ -28,15 +28,24 @@ const readFile = readline.createInterface({
 //
 // Note:
 // this function is duplicated at yarn2nix.js
-
-// TODO: use yarn workspaces to extract this function to lib and reuse in yarn2nix.js
 function urlToName(url) {
-  if (url.startsWith('git+')) {
+  const isGitDep = url.startsWith('git+https://') || url.startsWith('git://')
+
+  if (isGitDep) {
     return path.basename(url)
   }
+
+  // transform
+  // https://codeload.github.com/anmonteiro/nexe/tar.gz/142338ede69c3828c8a3c9fa7bacd4850762e4a1
+  // to
+  // anmonteiro_nexe_142338ede69c3828c8a3c9fa7bacd4850762e4a1
+  if (url.startsWith('https://codeload.github.com/')) {
+    return path.basename(url)
+  }
+
   return url
     .replace('https://registry.yarnpkg.com/', '') // prevents having long directory names
-    .replace(/[@/:-]/g, '_') // replace @ and : and - characters with underscore
+    .replace(/[@/:-]/g, '_') // replace "@", "/", ":", "/" characters with underscore
 }
 
 const result = []

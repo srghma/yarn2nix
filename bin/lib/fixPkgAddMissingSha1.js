@@ -1,10 +1,6 @@
 const https = require('https')
 const crypto = require('crypto')
 
-// TODO:
-// make test case where getSha1 function is used, i.e. the case when resolved is without sha1?
-// consider using https://github.com/request/request-promise-native
-
 function getSha1(url) {
   return new Promise((resolve, reject) => {
     https.get(url, res => {
