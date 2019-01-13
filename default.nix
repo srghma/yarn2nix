@@ -75,9 +75,11 @@ in rec {
   }:
     let
       offlineCache = importOfflineCache yarnNix;
+
       extraBuildInputs = (lib.flatten (builtins.map (key:
-        pkgConfig.${key} . buildInputs or []
+        pkgConfig.${key}.buildInputs or []
       ) (builtins.attrNames pkgConfig)));
+
       postInstall = (builtins.map (key:
         if (pkgConfig.${key} ? postInstall) then
           ''
@@ -213,7 +215,14 @@ in rec {
       })
       packagePaths
     );
-  in packages;
+  in packages // {
+    modules = mkYarnModules {
+      name = "workspace-modules";
+      pname = "workspace-modules";
+      version = "1.0.0";
+      inherit packageJSON yarnLock;
+    };
+  };
 
   mkYarnPackage = {
     name ? null,
